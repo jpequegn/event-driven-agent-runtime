@@ -1,9 +1,10 @@
 """Fork-and-rerun replay for pure providers. No review decision is carried forward."""
 
+import json
 from collections import Counter
 from difflib import unified_diff
 
-from event_runtime.contracts import Context, Snapshot, canonical, digest
+from event_runtime.contracts import Context, Snapshot, digest
 from event_runtime.queue import Queue
 from event_runtime.store import identity
 from event_runtime.worker import Worker
@@ -86,8 +87,8 @@ def compare(left, right):
         },
         "diff": "\n".join(
             unified_diff(
-                canonical(a).splitlines(),
-                canonical(b).splitlines(),
+                json.dumps(a, indent=2, sort_keys=True).splitlines(),
+                json.dumps(b, indent=2, sort_keys=True).splitlines(),
                 fromfile="original",
                 tofile="replay",
                 lineterm="",

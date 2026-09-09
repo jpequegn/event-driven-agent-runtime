@@ -10,8 +10,9 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 Name = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]
-Text = Annotated[str, StringConstraints(min_length=1, max_length=2000)]
+Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
 Profile = Literal["economy", "careful"]
+ArtifactHash = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 
 
 class Contract(BaseModel):
@@ -45,7 +46,8 @@ class Source(Contract):
 
     @model_validator(mode="after")
     def valid_date(self):
-        date.fromisoformat(self.published)
+        if date.fromisoformat(self.published).isoformat() != self.published:
+            raise ValueError("source date must use YYYY-MM-DD")
         return self
 
 
@@ -60,6 +62,9 @@ class Trigger(Contract):
 
     @model_validator(mode="after")
     def valid_window(self):
+        for value in (self.window_start, self.window_end):
+            if date.fromisoformat(value).isoformat() != value:
+                raise ValueError("window dates must use YYYY-MM-DD")
         if date.fromisoformat(self.window_start) > date.fromisoformat(self.window_end):
             raise ValueError("inverted source window")
         if len({s.id for s in self.sources}) != len(self.sources):
@@ -86,11 +91,27 @@ class Brief(Contract):
 
 
 class Verification(Contract):
-    brief_hash: str
-    context_hash: str
+    brief_hash: ArtifactHash
+    context_hash: ArtifactHash
     passed: bool
-    reasons: list[str]
-    missing_terms: list[str]
+    reasons: list[
+        Literal[
+            "unknown_citation",
+            "unsupported_claim",
+            "outside_source_window",
+            "missing_source_coverage",
+            "context_gap",
+        ]
+    ]
+    missing_terms: list[Name]
+
+    @model_validator(mode="after")
+    def consistent(self):
+        if self.passed != (not self.reasons):
+            raise ValueError("verification result contradicts reasons")
+        if bool(self.missing_terms) != ("context_gap" in self.reasons):
+            raise ValueError("context gap reasons must identify missing terms")
+        return self
 
 
 class Snapshot(Contract):
@@ -124,20 +145,51 @@ def digest(value) -> str:
 
 
 def read_json(path: Path):
-    raw = path.read_bytes()
+    with path.open("rb") as stream:
+        raw = stream.read(100_001)
     if len(raw) > 100_000:
         raise ValueError("input exceeds 100 KB")
-    return json.loads(raw)
+    return json.loads(raw, object_pairs_hook=unique_mapping)
+
+
+def unique_mapping(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate mapping key: {key}")
+        result[key] = value
+    return result
+
+
+class UniqueLoader(yaml.SafeLoader):
+    pass
+
+
+def yaml_mapping(loader, node):
+    return unique_mapping(
+        (loader.construct_object(k), loader.construct_object(v)) for k, v in node.value
+    )
+
+
+UniqueLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, yaml_mapping)
 
 
 def load_agent(path: Path) -> Agent:
-    raw = path.read_text()
-    if len(raw.encode()) > 16_000 or not raw.startswith("---\n"):
+    with path.open("rb") as stream:
+        data = stream.read(16_001)
+    raw = data.decode("utf-8")
+    if len(data) > 16_000 or not raw.startswith("---\n"):
         raise ValueError("expected bounded YAML front matter")
     parts = raw.split("\n---\n", 1)
     if len(parts) != 2:
         raise ValueError("missing front matter terminator")
-    header = yaml.safe_load(parts[0][4:])
+    try:
+        metadata = parts[0][4:]
+        if any(isinstance(event, yaml.AliasEvent) for event in yaml.parse(metadata)):
+            raise ValueError("YAML aliases are not supported")
+        header = yaml.load(metadata, Loader=UniqueLoader)
+    except yaml.YAMLError as exc:
+        raise ValueError("invalid YAML front matter") from exc
     if not isinstance(header, dict) or "prompt" in header:
         raise ValueError("invalid agent metadata")
     return Agent.model_validate(dict(header, prompt=parts[1].strip()))
