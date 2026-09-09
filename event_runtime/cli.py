@@ -9,6 +9,8 @@ import typer
 
 from event_runtime.contracts import Context, Snapshot, Trigger, load_agent, read_json
 from event_runtime.evaluation import evaluate
+from event_runtime.feedback import evaluate_feedback
+from event_runtime.output import write_report
 from event_runtime.queue import Queue
 from event_runtime.replay import compare, drive, feedback_cases, metrics, replay
 from event_runtime.review import Resolution, Review, Reviewer
@@ -227,6 +229,14 @@ def feedback(ctx: typer.Context, run_id: str):
         emit(feedback_cases(q.store.inspect(run_id)))
 
 
+@app.command("feedback-eval")
+@guarded
+def feedback_eval(ctx: typer.Context, run_id: str, profile: str = "careful"):
+    """Test a mock provider against verified human correction cases, without side effects."""
+    with ledger(ctx) as q:
+        emit(evaluate_feedback(q.store, run_id, profile))
+
+
 @app.command("schedule-add")
 @guarded
 def schedule_add(
@@ -279,7 +289,7 @@ def tick(ctx: typer.Context, limit: int = 10):
 @guarded
 def demo(out: Path = Path("data/demo"), accept_demo: bool = False):
     """Run the synthetic brief demo. Acceptance is opt-in and explicitly simulated."""
-    out.mkdir(parents=True, exist_ok=False)
+    out.mkdir(parents=True, exist_ok=False, mode=0o700)
     with Store(out / "runtime.db") as s:
         q = Queue(s)
         run = q.trigger(snapshot_files(), "demo", 0)
@@ -296,7 +306,7 @@ def demo(out: Path = Path("data/demo"), accept_demo: bool = False):
                 20,
             )
             report = s.inspect(run)
-        (out / "report.json").write_text(json.dumps(report, indent=2) + "\n")
+        write_report(out / "report.json", json.dumps(report, indent=2) + "\n")
         emit({"run_id": run, "database": str(out / "runtime.db"), **metrics(report)})
 
 

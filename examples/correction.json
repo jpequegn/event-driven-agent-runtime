@@ -1,0 +1,8 @@
+{
+  "title": "Reviewed evidence brief",
+  "claims": [
+    {"source_id": "episode-a", "text": "Checkpoints let interrupted workflows resume."},
+    {"source_id": "episode-a", "text": "Retries require idempotency."},
+    {"source_id": "episode-b", "text": "Human corrections can become regression cases."}
+  ]
+}

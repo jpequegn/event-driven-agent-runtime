@@ -4,6 +4,7 @@ from collections import Counter
 from pathlib import Path
 
 from event_runtime.contracts import Context, Snapshot, canonical
+from event_runtime.output import write_report
 from event_runtime.queue import Queue
 from event_runtime.replay import drive, metrics
 from event_runtime.review import Review, Reviewer
@@ -11,7 +12,9 @@ from event_runtime.store import Store
 
 
 def evaluate(output: Path, snapshot: Snapshot):
-    output.mkdir(parents=True, exist_ok=False)
+    if snapshot.trigger.fault != "none" or not snapshot.trigger.required_terms:
+        raise ValueError("evaluation requires a clean baseline with required context")
+    output.mkdir(parents=True, exist_ok=False, mode=0o700)
     results = []
     with Store(output / "evaluation.db") as store:
         queue = Queue(store)
@@ -82,7 +85,7 @@ def evaluate(output: Path, snapshot: Snapshot):
         "cases": results,
         "external_effects": 0,
     }
-    (output / "evaluation.json").write_text(canonical(result) + "\n")
+    write_report(output / "evaluation.json", canonical(result) + "\n")
     lines = [
         "# Synthetic workflow evaluation",
         "",
@@ -104,5 +107,5 @@ def evaluate(output: Path, snapshot: Snapshot):
         "",
         "No live provider, email, publish, merge, or GUI action was performed.",
     ]
-    (output / "evaluation.md").write_text("\n".join(lines) + "\n")
+    write_report(output / "evaluation.md", "\n".join(lines) + "\n")
     return result

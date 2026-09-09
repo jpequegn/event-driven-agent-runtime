@@ -63,3 +63,14 @@ def test_missing_db_fails_without_creating(tmp_path):
     result = CliRunner().invoke(app, ["--db", str(path), "runs"])
     assert result.exit_code == 2
     assert not path.exists()
+
+
+def test_cli_schedule_controls(tmp_path):
+    runner = CliRunner()
+    prefix = ["--db", str(tmp_path / "schedule.db")]
+    result = runner.invoke(app, prefix + ["schedule-add", "timer"])
+    assert result.exit_code == 0, result.output
+    result = runner.invoke(app, prefix + ["schedule-set", "timer", "--disabled"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)[0]["enabled"] == 0
+    assert json.loads(runner.invoke(app, prefix + ["tick"]).output)["runs"] == []

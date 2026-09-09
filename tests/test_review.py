@@ -1,6 +1,7 @@
 import pytest
 
 from event_runtime.contracts import Brief, Claim, Context
+from event_runtime.feedback import evaluate_feedback
 from event_runtime.queue import Queue
 from event_runtime.review import Resolution, Review, Reviewer
 from event_runtime.store import Conflict, Store
@@ -64,6 +65,7 @@ def test_correction_requires_reverification(tmp_path, snapshot):
             2,
         )
         assert s.inspect(run)["run"]["status"] == "rejected"
+        assert evaluate_feedback(s, run, "careful")["invalid_cases"] == 1
 
 
 def test_context_gap_feedback(tmp_path, snapshot):

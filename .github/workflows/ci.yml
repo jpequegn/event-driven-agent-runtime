@@ -13,3 +13,6 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pytest
       - run: uv build
+      - run: uv run python -m event_runtime demo --out data/ci-demo
+      - run: uv run python -m event_runtime --db data/ci-demo/runtime.db verify
+      - run: uv run python -m event_runtime evaluate --out reports/ci-evaluation
