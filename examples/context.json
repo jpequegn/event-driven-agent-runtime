@@ -1,0 +1,8 @@
+{
+  "definitions": {
+    "slo": "Service-level objective"
+  },
+  "provenance": {
+    "slo": "Curated synthetic fixture"
+  }
+}

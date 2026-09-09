@@ -1,0 +1,27 @@
+{
+  "goal": "Draft a reviewable podcast intelligence brief",
+  "window_start": "2026-09-01",
+  "window_end": "2026-09-09",
+  "sources": [
+    {
+      "id": "episode-a",
+      "title": "Synthetic episode: durable agents",
+      "published": "2026-09-02",
+      "facts": [
+        "Checkpoints let interrupted workflows resume.",
+        "Retries require idempotency."
+      ]
+    },
+    {
+      "id": "episode-b",
+      "title": "Synthetic episode: review",
+      "published": "2026-09-04",
+      "facts": [
+        "Human corrections can become regression cases."
+      ]
+    }
+  ],
+  "required_terms": [
+    "slo"
+  ]
+}
