@@ -86,6 +86,8 @@ class Brief(Contract):
 
 
 class Verification(Contract):
+    brief_hash: str
+    context_hash: str
     passed: bool
     reasons: list[str]
     missing_terms: list[str]
