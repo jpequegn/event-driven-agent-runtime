@@ -114,7 +114,7 @@ def intent(store, run_id, now, *, unsafe=False):
 
 
 def sink(path, value, key, *, fail=False):
-    """Commit attempts separately from effects; key uniqueness is only local."""
+    """Count committed attempts separately from effects; key uniqueness is local."""
     with closing(sqlite3.connect(path)) as c, c:
         c.execute("CREATE TABLE IF NOT EXISTS attempts(id INTEGER PRIMARY KEY, action_id TEXT)")
         c.execute(
@@ -221,21 +221,22 @@ def run_case(directory, scenario, implementation, trial):
         crash(directory, run_id, "before" if scenario == "crash-before" else "after")
     publication = "not_attempted"
     if prepared is not None:
-        # The reply for another action is not evidence about this intent.
-        wrong_reply = scenario == "out-of-order"
-        if wrong_reply:
+        # A confirmation before target observation is not independent outcome evidence.
+        early_confirmation = scenario == "out-of-order"
+        if early_confirmation:
             with Store(database) as store:
                 note(
                     store,
                     run_id,
-                    "signoff.unrelated-confirmation",
+                    "signoff.premature-confirmation",
                     {
-                        "action_id": "unrelated",
+                        "action_id": prepared["action_id"],
+                        "before_effect": True,
                         "accepted": implementation == "baseline",
                     },
                     34,
                 )
-        if wrong_reply and implementation == "baseline":
+        if early_confirmation and implementation == "baseline":
             publication = "confirmed_success"
         else:
             prior = observe(external)

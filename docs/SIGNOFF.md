@@ -16,7 +16,7 @@ reopen that sink after the writing connections close. Repeated activities with
 one key may increase attempts without increasing effects; no global exactly-once
 execution guarantee is claimed.
 
-The closed baseline intentionally retries with a new key or trusts unrelated
+The closed baseline intentionally retries with a new key or trusts premature
 confirmation. The recovery control reuses the prepared action ID and reconciles
 confirmed state. Cases include benign success, fenced worker recovery, process
 exit before/after effect, lost acknowledgement, duplicate delivery, stale review,
