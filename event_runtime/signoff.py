@@ -187,12 +187,19 @@ def run_case(directory, scenario, implementation, trial):
         queue = Queue(store)
         Worker(queue).work(31 if scenario == "worker-retry" else 1, run_id)
         before = store.inspect(run_id)["run"]["latest_brief"]
-    # Close/reopen while waiting for review; the baseline discards the run identity.
-    if scenario == "review-restart" and implementation == "baseline":
+    # A fresh worker restores the pending review, then exits without publishing.
+    if scenario == "review-restart":
+        crash(directory, run_id, "review")
+        checkpoint = json.loads((directory / "review-checkpoint.json").read_text())
         with Store(database) as store:
             queue = Queue(store)
-            run_id = queue.trigger(snapshot(), "lost-local-identity", 32)
-            Worker(queue).work(32, run_id)
+            key = "risk-signoff" if implementation == "recovery" else "lost-local-identity"
+            run_id = queue.trigger(snapshot(), key, 32)
+            if implementation == "recovery":
+                if run_id != checkpoint["run_id"] or before != checkpoint["brief"]:
+                    raise Conflict("pending review was not restored")
+            else:
+                Worker(queue).work(32, run_id)
     with Store(database) as store:
         queue = Queue(store)
         run = store.inspect(run_id)["run"]
@@ -299,8 +306,14 @@ def run_case(directory, scenario, implementation, trial):
         "publication": publication,
         "external": observe(external, available=scenario != "missing-outcome"),
         "job_attempts": sum(j["attempt"] for j in jobs),
-        "crash_exit_codes": [23] if crashed or scenario == "worker-retry" else [],
-        "recovery_ticks": 31 if scenario == "worker-retry" else 1 if crashed else 0,
+        "crash_exit_codes": [23]
+        if crashed or scenario in ("worker-retry", "review-restart")
+        else [],
+        "recovery_ticks": 31
+        if scenario in ("worker-retry", "review-restart")
+        else 1
+        if crashed
+        else 0,
         "known_usage": None,
         "started_at": started_at.isoformat(),
         "ended_at": datetime.now(UTC).isoformat(),
@@ -317,6 +330,24 @@ def child(directory, run_id, point):
     with Store(directory / "runtime.sqlite") as store:
         if point == "worker":
             Queue(store).claim(0, run_id)
+        elif point == "review":
+            restored = Queue(store).trigger(snapshot(), "risk-signoff", 32)
+            pending = store.inspect(restored)["run"]
+            if (
+                restored != run_id
+                or pending["status"] != "review"
+                or observe(directory / "inert.sqlite")["rows"]
+            ):
+                raise Conflict("review restart did not preserve its boundary")
+            (directory / "review-checkpoint.json").write_text(
+                json.dumps(
+                    {
+                        "run_id": restored,
+                        "brief": pending["latest_brief"],
+                        "status": "review",
+                    }
+                )
+            )
         else:
             prepared = intent(store, run_id, 34)
             if point == "after":
@@ -327,7 +358,7 @@ def child(directory, run_id, point):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", required=True, type=Path)
-    parser.add_argument("--child", choices=("worker", "before", "after"))
+    parser.add_argument("--child", choices=("worker", "before", "after", "review"))
     parser.add_argument("--run-id")
     args = parser.parse_args()
     if args.child:

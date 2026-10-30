@@ -22,7 +22,9 @@ confirmed state. Cases include benign success, fenced worker recovery, process
 exit before/after effect, lost acknowledgement, duplicate delivery, stale review,
 confirmed target failure, unavailable outcome evidence, unrelated confirmation,
 and restart awaiting review. Crash children really exit 23 after committing
-state; the parent reopens the stores. Logical recovery ticks and measured
+state; the parent reopens the stores. A separate child restores the pending review
+by its durable trigger key and exits before approval; the recovery controller then
+resumes the same run and draft. The baseline intentionally discards that identity. Logical recovery ticks and measured
 publication-phase seconds are separate. Unknown usage remains null.
 
 `inert-signoff-receipt/v1` and `inert-signoff-batch/v1` are producer schemas.

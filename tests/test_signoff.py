@@ -33,11 +33,16 @@ def test_inert_signoff_reopens_actual_target_and_sealed_runtime(tmp_path, scenar
         assert len(external["rows"]) == (1 if implementation == "recovery" else 2)
     else:
         assert len(external["rows"]) == 1
-    if scenario in ("crash-before", "crash-after", "worker-retry"):
+    if scenario in ("crash-before", "crash-after", "worker-retry", "review-restart"):
         assert receipt["crash_exit_codes"] == [23]
     if scenario == "worker-retry":
         assert receipt["job_attempts"] == 3
     if scenario == "review-restart":
+        import json
+
+        checkpoint = json.loads((directory / "review-checkpoint.json").read_text())
+        assert checkpoint["status"] == "review"
+        assert checkpoint["run_id"] == receipt["original_run_id"]
         assert (receipt["run_id"] == receipt["original_run_id"]) == (implementation == "recovery")
     if implementation == "recovery" and scenario in ("lost-ack", "duplicate"):
         assert external["attempts"] == 2  # retried activity, one effect
