@@ -32,3 +32,12 @@ uv build
 `edr` is also installed as a console command. The module form above avoids editable-install `.pth` issues seen in some iCloud-backed macOS directories. No environment flag changes are required to use the module form from the checkout.
 
 See [architecture](docs/ARCHITECTURE.md), [evaluation](docs/EVALUATION.md), and the [source-scope map](docs/SCOPE.md). Source: [project-ideas #243](https://github.com/jpequegn/project-ideas/issues/243).
+
+## Inert sign-off recovery fixture
+
+`python -m event_runtime.signoff --directory /tmp/signoff-new` runs a closed
+synthetic risk-report matrix for source #298. It reuses the existing pure queue,
+sealed event store and revision-bound reviewer, then journals a separate inert
+SQLite publication intent. Only the local `results` table is an effect boundary;
+there is no network publisher, model or arbitrary callback. Synthetic operator
+acceptance is not an owner label. See [the adapter contract](docs/SIGNOFF.md).
